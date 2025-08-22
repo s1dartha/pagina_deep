@@ -1477,7 +1477,7 @@ if st.session_state.Contenido6:
         )
         st.graphviz_chart(grafo, use_container_width=True)
 
-    st.divider()
+    st.divider() 
 
    
    
