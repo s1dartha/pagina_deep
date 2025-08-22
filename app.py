@@ -68,16 +68,30 @@ def load_data():
         st.error(f"No se pudo cargar el dataset desde la URL. Error: {e}")
         return None
     return dataset
+# Función de limpieza (la misma de la respuesta anterior)
+@st.cache_data
+def limpiar_y_preparar_datos(df):
+    df_limpio = df.copy()
+    cols_con_cero_anomalo = ['Glucosa', 'PresionSanguinea', 'EspesorPiel', 'Insulina', 'IMC']
+    df_limpio[cols_con_cero_anomalo] = df_limpio[cols_con_cero_anomalo].replace(0, np.nan)
+    df_limpio = df_limpio.drop('EspesorPiel', axis=1)
+    for col in df_limpio.columns[df_limpio.isnull().any()]:
+        df_limpio[col].fillna(df_limpio[col].median(), inplace=True)
+    return df_limpio
+
 
 dataset = load_data()
 
 if dataset is not None:
     st.title("Análisis Interactivo de Diabetes y Redes Neuronales")
     st.write("## Carga y Visualización Inicial del Dataset")
-
+    dataset_original = dataset.copy()
+    dataset_limpio = limpiar_y_preparar_datos(dataset_original)
+    X = dataset_limpio.drop("Diabetes", axis=1).to_numpy(dtype="float32")
+    Y = dataset_limpio["Diabetes"].to_numpy(dtype="float32")
     col1, col2 = st.columns([2, 1.5])
     with col1:
-        st.dataframe(dataset.head(13), hide_index=True, height=500)
+        st.dataframe(dataset_original.head(13), hide_index=True, height=500)
 
     X_original = dataset.drop("Diabetes", axis=1).to_numpy(dtype="float32")
     Y_original = dataset["Diabetes"].to_numpy(dtype="float32")
@@ -85,14 +99,14 @@ if dataset is not None:
     with col2:
         idx = st.number_input(
             "Elige el índice del registro para análisis neuronal:",
-            min_value=0, max_value=len(dataset)-1, value=0, step=1
+            min_value=0, max_value=len(dataset_original)-1, value=0, step=1
         )
         registro = dataset.iloc[int(idx)]
-        st.write("Registro elegido:")
-        st.write(registro)
+        st.write("Registro original elegido:")
+        st.write(dataset_original.iloc[int(idx)])
 
-    X_sample = X_original[int(idx)]
-    y_sample = Y_original[int(idx)]
+    X_sample = X[int(idx)]
+    y_sample = Y[int(idx)]
 
     st.divider()
 
@@ -223,36 +237,12 @@ if dataset is not None:
         if col_btn2.button("Mostrar EDA DESPUÉS de Limpiar", use_container_width=True): st.session_state.show_eda = 'despues'
 
         if st.session_state.show_eda == 'antes':
-            full_eda(dataset, "Análisis Exploratorio con Datos Originales")
+            full_eda(dataset_original, "Análisis Exploratorio con Datos Originales")
+
 
         elif st.session_state.show_eda == 'despues':
-            df_limpio = dataset.copy()
-            
-            st.markdown("---")
-            st.write("#### Proceso de Limpieza:")
-            
-            cols_con_cero_anomalo = ['Glucosa', 'PresionSanguinea', 'EspesorPiel', 'Insulina', 'IMC']
-            df_limpio[cols_con_cero_anomalo] = df_limpio[cols_con_cero_anomalo].replace(0, np.nan)
-            st.info(f"1. Se reemplazaron los valores '0' en {cols_con_cero_anomalo} por NaN (datos faltantes).")
-
-            df_limpio = df_limpio.drop('EspesorPiel', axis=1)
-            st.success("2. Columna 'EspesorPiel' eliminada.")
-
-            for col in df_limpio.columns[df_limpio.isnull().any()]:
-                df_limpio[col].fillna(df_limpio[col].median(), inplace=True)
-            st.info("3. Se imputaron todos los valores faltantes (NaN) con la mediana de su respectiva columna.")
-
-            st.session_state.df_limpio = df_limpio
-            full_eda(df_limpio, "Análisis Exploratorio con Datos Limpios")
-
-    if 'df_limpio' in st.session_state:
-        st.success("✅ **Dataset Limpio generado.** El resto de los análisis neuronales se realizarán con esta versión de los datos.")
-        final_dataset = st.session_state.df_limpio
-        X = final_dataset.drop("Diabetes", axis=1).to_numpy(dtype="float32")
-        Y = final_dataset["Diabetes"].to_numpy(dtype="float32")
-    else:
-        X = X_original
-        Y = Y_original
+           full_eda(dataset_limpio, "Análisis Exploratorio con Datos Limpios")
+ 
     
     st.divider()
     st.header("Análisis de la Red Neuronal")
