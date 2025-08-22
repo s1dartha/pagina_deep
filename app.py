@@ -37,7 +37,7 @@ def pasando_por_capa(entrada, weights, biases, final=False, use_bias=True):
     else:
         sal_capa = np.maximum(0, combinacion)
     return sal_capa, combinacion
- 
+
 warnings.filterwarnings('ignore')
 backend.clear_session()
 tf.random.set_seed(42)
@@ -62,7 +62,6 @@ def load_data():
         "Insulina", "IMC", "DiabetesPedigree", "Edad", "Diabetes"
     ]
     try:
-        # Intenta cargar desde una URL para mayor portabilidad
         url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
         dataset = pd.read_csv(url, delimiter=",", names=columnas, header=None)
     except Exception as e:
@@ -97,9 +96,6 @@ if dataset is not None:
 
     st.divider()
 
-    # ############################################################
-    # INICIO DE LA NUEVA SECCIÓN: ANÁLISIS DE LA BASE
-    # ############################################################
     st.header("Análisis de la Base de Datos")
 
     vista1, vista2 = st.tabs(["Análisis por Variable", "Limpieza y EDA Comparativo"])
@@ -131,17 +127,12 @@ if dataset is not None:
             def analizar_plausibilidad(df, columna, min_val, max_val):
                 total_valores = len(df[columna])
                 if total_valores == 0: return
-
                 dentro_rango = df[(df[columna] >= min_val) & (df[columna] <= max_val)]
-                fuera_rango = df[(df[columna] < min_val) | (df[columna] > max_val)]
-
                 porcentaje_dentro = (len(dentro_rango) / total_valores) * 100
-                
                 st.markdown(f"**Análisis de Rango Plausible para '{columna}':**")
                 st.progress(int(porcentaje_dentro))
                 st.write(f"✅ **{porcentaje_dentro:.2f}%** de los valores están en el rango plausible ({min_val} - {max_val}).")
                 st.write(f"⚠️ **{100-porcentaje_dentro:.2f}%** de los valores son inverosímiles o incompatibles.")
-
                 if columna in ['EspesorPiel', 'Insulina', 'Glucosa', 'PresionSanguinea', 'IMC']:
                     valores_cero = df[df[columna] == 0]
                     if not valores_cero.empty:
@@ -168,20 +159,63 @@ if dataset is not None:
             with col_info: st.dataframe(df.head())
             with col_desc: st.dataframe(df.describe())
 
-            st.markdown("#### Análisis Bivariado y de Clases")
-            col_dist, col_pair = st.columns([1, 2])
-            with col_dist:
+            st.markdown("---")
+            st.markdown("#### Visualización de Distribuciones y Correlaciones")
+
+            col1, col2 = st.columns(2)
+            with col1:
                 st.write("**Distribución de Clases (Diabetes)**")
-                fig, ax = plt.subplots()
+                fig, ax = plt.subplots(figsize=(6, 5))
                 sns.countplot(x="Diabetes", data=df, palette="Set2", ax=ax)
                 st.pyplot(fig)
 
-            with col_pair:
-                st.write("**Pairplot de Variables (Análisis Bivariado)**")
-                st.warning("El pairplot puede tardar unos segundos en generarse.")
-                with st.spinner("Generando pairplot..."):
-                    pairplot_fig = sns.pairplot(df, hue="Diabetes", diag_kind="kde", corner=True, palette="husl")
-                    st.pyplot(pairplot_fig)
+            with col2:
+                st.write("**Matriz de Correlación (Spearman)**")
+                with st.spinner("Calculando correlaciones..."):
+                    correlation_matrix = df.corr(method="spearman")
+                    fig, ax = plt.subplots(figsize=(8, 7))
+                    sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax, annot_kws={"size": 8})
+                    st.pyplot(fig)
+
+            st.markdown("---")
+            st.markdown("#### Boxplots de Todas las Variables Numéricas")
+            numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+            if 'Diabetes' in numeric_cols:
+                numeric_cols.remove('Diabetes')
+            
+            num_plots = len(numeric_cols)
+            num_cols = 4
+            num_rows = (num_plots + num_cols - 1) // num_cols
+            
+            fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, num_rows * 3.5))
+            axes = axes.flatten()
+
+            for i, col in enumerate(numeric_cols):
+                sns.boxplot(y=df[col], ax=axes[i], color="skyblue")
+                axes[i].set_title(col)
+                axes[i].set_ylabel('')
+            
+            for j in range(i + 1, len(axes)):
+                axes[j].set_visible(False)
+                
+            plt.tight_layout()
+            st.pyplot(fig)
+
+            st.markdown("---")
+            st.markdown("#### Análisis Bivariado Interactivo (Scatter Plot)")
+            
+            col_sel1, col_sel2 = st.columns(2)
+            with col_sel1:
+                x_axis = st.selectbox("Selecciona la variable para el Eje X:", numeric_cols, index=1, key=f"x_{title}") # Default Glucosa
+            with col_sel2:
+                y_axis = st.selectbox("Selecciona la variable para el Eje Y:", numeric_cols, index=4, key=f"y_{title}") # Default IMC
+
+            if x_axis and y_axis:
+                st.write(f"**Relación entre {x_axis} y {y_axis}**")
+                fig, ax = plt.subplots(figsize=(8, 6))
+                sns.scatterplot(data=df, x=x_axis, y=y_axis, hue="Diabetes", palette="husl", alpha=0.7, ax=ax)
+                ax.grid(True)
+                st.pyplot(fig)
 
         if 'show_eda' not in st.session_state: st.session_state.show_eda = None
         col_btn1, col_btn2 = st.columns(2)
@@ -197,16 +231,13 @@ if dataset is not None:
             st.markdown("---")
             st.write("#### Proceso de Limpieza:")
             
-            # Paso 1: Reemplazar ceros inverosímiles con NaN
             cols_con_cero_anomalo = ['Glucosa', 'PresionSanguinea', 'EspesorPiel', 'Insulina', 'IMC']
             df_limpio[cols_con_cero_anomalo] = df_limpio[cols_con_cero_anomalo].replace(0, np.nan)
             st.info(f"1. Se reemplazaron los valores '0' en {cols_con_cero_anomalo} por NaN (datos faltantes).")
 
-            # Paso 2: Eliminar 'EspesorPiel'
             df_limpio = df_limpio.drop('EspesorPiel', axis=1)
             st.success("2. Columna 'EspesorPiel' eliminada.")
 
-            # Paso 3: Imputar todos los NaN con la mediana de su columna
             for col in df_limpio.columns[df_limpio.isnull().any()]:
                 df_limpio[col].fillna(df_limpio[col].median(), inplace=True)
             st.info("3. Se imputaron todos los valores faltantes (NaN) con la mediana de su respectiva columna.")
@@ -227,7 +258,6 @@ if dataset is not None:
     st.header("Análisis de la Red Neuronal")
     st.write("Utiliza las secciones desplegables para explorar el comportamiento de la red.")
     # ... (El resto de tu código original iría aquí) ...
-
 
 ##########################################################################################################################################################################################################################################################################################
 
