@@ -613,20 +613,19 @@ with col:
     if st.session_state.Contenido2:
         from graphviz import Digraph
 
-        def crear_grafo_red_ordenado(model, X_sample):
+        def crear_grafo_red_ordenado(model, X_sample, nombres_columnas):
             """
             Grafo compacto con nodos de entrada renombrados y neuronas en orden ascendente.
             """
-            def crear_grafo_red_ordenado(model, X_sample, nombres_columnas):
-                dot = Digraph(format="png")
-                dot.attr(rankdir="LR", nodesep="0.1", ranksep="0.15")
+            dot = Digraph(format="png")
+            dot.attr(rankdir="LR", nodesep="0.1", ranksep="0.15")
 
-                # Entradas
-                input_values = X_sample.flatten()
-                prev_nodes = [f"in_{i}" for i in range(len(input_values))]
+            # Entradas
+            input_values = X_sample.flatten()
+            prev_nodes = [f"in_{i}" for i in range(len(input_values))]
 
-                for i, (label, val) in enumerate(zip(nombres_columnas, input_values)):
-                    dot.node(prev_nodes[i], f"{label}\n{val:.3f}", shape="box", style="filled", color="lightgrey")
+            for i, (label, val) in enumerate(zip(nombres_columnas, input_values)):
+                dot.node(prev_nodes[i], f"{label}\n{val:.3f}", shape="box", style="filled", color="lightgrey")
             # Capas
             for idx_capa, layer in enumerate(model.layers):
                 pesos, sesgos = layer.get_weights()
@@ -665,7 +664,7 @@ with col:
 
         # --- Uso ---
         X_sample = X[int(idx)]
-        dot = crear_grafo_red_ordenado(model, X_sample)
+        dot = crear_grafo_red_ordenado(model, X_sample, dataset.columns[:-1])
         st.graphviz_chart(dot, use_container_width=True)
 
 
