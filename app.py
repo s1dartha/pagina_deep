@@ -37,7 +37,7 @@ def pasando_por_capa(entrada, weights, biases, final=False, use_bias=True):
     else:
         sal_capa = np.maximum(0, combinacion)
     return sal_capa, combinacion
-
+ 
 warnings.filterwarnings('ignore')
 backend.clear_session()
 tf.random.set_seed(42)
