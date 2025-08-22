@@ -71,151 +71,85 @@ def load_data():
 
 dataset = load_data()
 
+# --- REEMPLAZA TU CÓDIGO CON ESTE BLOQUE ---
+
+# Función de limpieza (la misma de la respuesta anterior)
+@st.cache_data
+def limpiar_y_preparar_datos(df):
+    df_limpio = df.copy()
+    cols_con_cero_anomalo = ['Glucosa', 'PresionSanguinea', 'EspesorPiel', 'Insulina', 'IMC']
+    df_limpio[cols_con_cero_anomalo] = df_limpio[cols_con_cero_anomalo].replace(0, np.nan)
+    df_limpio = df_limpio.drop('EspesorPiel', axis=1)
+    for col in df_limpio.columns[df_limpio.isnull().any()]:
+        df_limpio[col].fillna(df_limpio[col].median(), inplace=True)
+    return df_limpio
+
+# Carga inicial de datos
+dataset = load_data()
+
 if dataset is not None:
     st.title("Análisis Interactivo de Diabetes y Redes Neuronales")
-    st.write("## Carga y Visualización Inicial del Dataset")
+
+    # --- LÓGICA DE DATOS CENTRALIZADA ---
+    # 1. Mantenemos el dataframe original para el EDA comparativo.
+    dataset_original = dataset.copy()
+    
+    # 2. Creamos la versión limpia que usarán TODAS las secciones de modelos.
+    dataset_limpio = limpiar_y_preparar_datos(dataset_original)
+
+    # 3. Definimos X y Y a partir de la versión LIMPIA.
+    #    Estas variables serán usadas por las secciones 1, 3, 4, 5 y 6.
+    X = dataset_limpio.drop("Diabetes", axis=1).to_numpy(dtype="float32")
+    Y = dataset_limpio["Diabetes"].to_numpy(dtype="float32")
+    # --- FIN DE LA LÓGICA DE DATOS ---
+
+    # --- Interfaz de Usuario ---
+    st.write("## Carga y Visualización Inicial del Dataset (Datos Originales)")
 
     col1, col2 = st.columns([2, 1.5])
     with col1:
-        st.dataframe(dataset.head(13), hide_index=True, height=500)
-
-    X_original = dataset.drop("Diabetes", axis=1).to_numpy(dtype="float32")
-    Y_original = dataset["Diabetes"].to_numpy(dtype="float32")
+        # Mostramos el dataframe original para que el usuario pueda ver los datos crudos.
+        st.dataframe(dataset_original.head(13), hide_index=True, height=500)
 
     with col2:
         idx = st.number_input(
             "Elige el índice del registro para análisis neuronal:",
-            min_value=0, max_value=len(dataset)-1, value=0, step=1
+            min_value=0, max_value=len(dataset_original)-1, value=0, step=1
         )
-        registro = dataset.iloc[int(idx)]
-        st.write("Registro elegido:")
-        st.write(registro)
+        # Mostramos el registro original que el usuario seleccionó.
+        st.write("Registro original elegido:")
+        st.write(dataset_original.iloc[int(idx)])
 
-    X_sample = X_original[int(idx)]
-    y_sample = Y_original[int(idx)]
+    # IMPORTANTE: Aunque el usuario elige viendo el registro original,
+    # X_sample (usado en la Sección 1) se toma del array 'X' limpio.
+    X_sample = X[int(idx)]
+    y_sample = Y[int(idx)]
 
     st.divider()
 
+    # --- SECCIÓN DE ANÁLISIS DE DATOS (EDA) ---
     st.header("Análisis de la Base de Datos")
 
     vista1, vista2 = st.tabs(["Análisis por Variable", "Limpieza y EDA Comparativo"])
 
     with vista1:
+        # Esta sección de análisis de plausibilidad usa el dataset original, lo cual es correcto.
         st.subheader("Vista 1: Análisis de Plausibilidad por Variable")
-        col_selector, col_graficos = st.columns([1, 2])
-
-        with col_selector:
-            info_variables = {
-                "Embarazos": {"texto": "Valores negativos son incompatibles. >25 es improbable.", "plausible_min": 0, "plausible_max": 25},
-                "Glucosa": {"texto": "Rango plausible: 40-600 mg/dL. <20 o >1000 es incompatible con la vida.", "plausible_min": 40, "plausible_max": 600},
-                "PresionSanguinea": {"texto": "Rango plausible: 30-140 mmHg. <20 o >200 es incompatible.", "plausible_min": 30, "plausible_max": 140},
-                "EspesorPiel": {"texto": "Rango plausible: 1-80 mm. Valores negativos o 0 son anómalos.", "plausible_min": 1, "plausible_max": 80},
-                "Insulina": {"texto": "Rango plausible: 1-900 µU/mL. Valores negativos o 0 son anómalos.", "plausible_min": 1, "plausible_max": 900},
-                "IMC": {"texto": "Rango plausible: 10-70. Negativos o >100 es incompatible.", "plausible_min": 10, "plausible_max": 70},
-                "DiabetesPedigree": {"texto": "Rango plausible: 0-3. Negativos o >5 es incompatible.", "plausible_min": 0, "plausible_max": 3},
-                "Edad": {"texto": "Rango plausible: 0-100 años. Negativos o >120 es incompatible.", "plausible_min": 0, "plausible_max": 120},
-            }
-
-            variable_seleccionada = st.selectbox(
+        # ... (Tu código para vista1 no necesita cambios, ya usa 'dataset' que es el original)
+        # ... (El resto de tu código para vista1 continúa aquí)
+        
+        # Ejemplo de cómo se usa 'dataset' aquí (no necesitas cambiarlo)
+        variable_seleccionada = st.selectbox(
                 "Selecciona una variable para analizar:",
                 options=list(info_variables.keys())
             )
+        #... el resto de tu código de vista1 ...
 
-            st.markdown(f"**Descripción de '{variable_seleccionada}':**")
-            st.info(info_variables[variable_seleccionada]["texto"])
-
-            def analizar_plausibilidad(df, columna, min_val, max_val):
-                total_valores = len(df[columna])
-                if total_valores == 0: return
-                dentro_rango = df[(df[columna] >= min_val) & (df[columna] <= max_val)]
-                porcentaje_dentro = (len(dentro_rango) / total_valores) * 100
-                st.markdown(f"**Análisis de Rango Plausible para '{columna}':**")
-                st.progress(int(porcentaje_dentro))
-                st.write(f"✅ **{porcentaje_dentro:.2f}%** de los valores están en el rango plausible ({min_val} - {max_val}).")
-                st.write(f"⚠️ **{100-porcentaje_dentro:.2f}%** de los valores son inverosímiles o incompatibles.")
-                if columna in ['EspesorPiel', 'Insulina', 'Glucosa', 'PresionSanguinea', 'IMC']:
-                    valores_cero = df[df[columna] == 0]
-                    if not valores_cero.empty:
-                        st.warning(f"Nota: La columna '{columna}' tiene **{len(valores_cero)} valores '0'**, que pueden indicar datos no medidos o anómalos.")
-
-            info_var = info_variables[variable_seleccionada]
-            analizar_plausibilidad(dataset, variable_seleccionada, info_var["plausible_min"], info_var["plausible_max"])
-
-        with col_graficos:
-            st.write("#### Gráficos de Distribución")
-            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-            sns.histplot(dataset[variable_seleccionada], kde=True, ax=axes[0], color="skyblue").set_title(f'Histograma de {variable_seleccionada}')
-            sns.boxplot(x=dataset[variable_seleccionada], ax=axes[1], color="lightgreen").set_title(f'Boxplot de {variable_seleccionada}')
-            plt.tight_layout()
-            st.pyplot(fig)
 
     with vista2:
         st.subheader("Vista 2: EDA Antes y Después de la Limpieza de Datos")
 
-        def full_eda(df, title):
-            st.markdown(f"### {title}")
-            st.markdown("#### Información General y Estadísticas Descriptivas")
-            col_info, col_desc = st.columns(2)
-            with col_info: st.dataframe(df.head())
-            with col_desc: st.dataframe(df.describe())
-
-            st.markdown("---")
-            st.markdown("#### Visualización de Distribuciones y Correlaciones")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write("**Distribución de Clases (Diabetes)**")
-                fig, ax = plt.subplots(figsize=(6, 5))
-                sns.countplot(x="Diabetes", data=df, palette="Set2", ax=ax)
-                st.pyplot(fig)
-
-            with col2:
-                st.write("**Matriz de Correlación (Spearman)**")
-                with st.spinner("Calculando correlaciones..."):
-                    correlation_matrix = df.corr(method="spearman")
-                    fig, ax = plt.subplots(figsize=(8, 7))
-                    sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", fmt=".2f", ax=ax, annot_kws={"size": 8})
-                    st.pyplot(fig)
-
-            st.markdown("---")
-            st.markdown("#### Boxplots de Todas las Variables Numéricas")
-            numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-            if 'Diabetes' in numeric_cols:
-                numeric_cols.remove('Diabetes')
-            
-            num_plots = len(numeric_cols)
-            num_cols = 4
-            num_rows = (num_plots + num_cols - 1) // num_cols
-            
-            fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, num_rows * 3.5))
-            axes = axes.flatten()
-
-            for i, col in enumerate(numeric_cols):
-                sns.boxplot(y=df[col], ax=axes[i], color="skyblue")
-                axes[i].set_title(col)
-                axes[i].set_ylabel('')
-            
-            for j in range(i + 1, len(axes)):
-                axes[j].set_visible(False)
-                
-            plt.tight_layout()
-            st.pyplot(fig)
-
-            st.markdown("---")
-            st.markdown("#### Análisis Bivariado Interactivo (Scatter Plot)")
-            
-            col_sel1, col_sel2 = st.columns(2)
-            with col_sel1:
-                x_axis = st.selectbox("Selecciona la variable para el Eje X:", numeric_cols, index=1, key=f"x_{title}") # Default Glucosa
-            with col_sel2:
-                y_axis = st.selectbox("Selecciona la variable para el Eje Y:", numeric_cols, index=4, key=f"y_{title}") # Default IMC
-
-            if x_axis and y_axis:
-                st.write(f"**Relación entre {x_axis} y {y_axis}**")
-                fig, ax = plt.subplots(figsize=(8, 6))
-                sns.scatterplot(data=df, x=x_axis, y=y_axis, hue="Diabetes", palette="husl", alpha=0.7, ax=ax)
-                ax.grid(True)
-                st.pyplot(fig)
+        # ... (la función full_eda no necesita cambios) ...
 
         if 'show_eda' not in st.session_state: st.session_state.show_eda = None
         col_btn1, col_btn2 = st.columns(2)
@@ -223,41 +157,20 @@ if dataset is not None:
         if col_btn2.button("Mostrar EDA DESPUÉS de Limpiar", use_container_width=True): st.session_state.show_eda = 'despues'
 
         if st.session_state.show_eda == 'antes':
-            full_eda(dataset, "Análisis Exploratorio con Datos Originales")
+            # Para el "antes", usamos el dataframe original
+            full_eda(dataset_original, "Análisis Exploratorio con Datos Originales")
 
         elif st.session_state.show_eda == 'despues':
-            df_limpio = dataset.copy()
-            
-            st.markdown("---")
-            st.write("#### Proceso de Limpieza:")
-            
-            cols_con_cero_anomalo = ['Glucosa', 'PresionSanguinea', 'EspesorPiel', 'Insulina', 'IMC']
-            df_limpio[cols_con_cero_anomalo] = df_limpio[cols_con_cero_anomalo].replace(0, np.nan)
-            st.info(f"1. Se reemplazaron los valores '0' en {cols_con_cero_anomalo} por NaN (datos faltantes).")
+            # Para el "después", usamos el dataframe limpio
+            full_eda(dataset_limpio, "Análisis Exploratorio con Datos Limpios")
 
-            df_limpio = df_limpio.drop('EspesorPiel', axis=1)
-            st.success("2. Columna 'EspesorPiel' eliminada.")
-
-            for col in df_limpio.columns[df_limpio.isnull().any()]:
-                df_limpio[col].fillna(df_limpio[col].median(), inplace=True)
-            st.info("3. Se imputaron todos los valores faltantes (NaN) con la mediana de su respectiva columna.")
-
-            st.session_state.df_limpio = df_limpio
-            full_eda(df_limpio, "Análisis Exploratorio con Datos Limpios")
-
-    if 'df_limpio' in st.session_state:
-        st.success("✅ **Dataset Limpio generado.** El resto de los análisis neuronales se realizarán con esta versión de los datos.")
-        final_dataset = st.session_state.df_limpio
-        X = final_dataset.drop("Diabetes", axis=1).to_numpy(dtype="float32")
-        Y = final_dataset["Diabetes"].to_numpy(dtype="float32")
-    else:
-        X = X_original
-        Y = Y_original
-    
     st.divider()
     st.header("Análisis de la Red Neuronal")
     st.write("Utiliza las secciones desplegables para explorar el comportamiento de la red.")
-    # ... (El resto de tu código original iría aquí) ...
+    # A partir de aquí comienzan tus secciones 1, 3, 4, 5 y 6...
+    # NO necesitas hacerles ningún cambio.
+
+# --- FIN DEL BLOQUE DE REEMPLAZO ---
 
 ##########################################################################################################################################################################################################################################################################################
 
