@@ -1,0 +1,13 @@
+streamlit
+
+numpy
+
+tensorflow (esto ya incluye keras)
+
+matplotlib
+
+graphviz
+
+scikit-learn
+
+seaborn
