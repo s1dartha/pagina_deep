@@ -355,18 +355,42 @@ if st.session_state.Contenido1:
             ''', language='python')
 
     elif st.session_state.seccion_actual == 'B':
-            st.markdown('''#### B) Analice cóomo se distribuyen los valores iniciales de los pesos y sesgos. ¿Qué patrones pueden observarse en términos de magnitud y dirección (positivos o negativos)? ¿Coinciden con el tipo de inicializador utilizado?''',unsafe_allow_html=True)
+            st.markdown('''#### B) Analice cómo se distribuyen los valores iniciales de los pesos y sesgos. ¿Qué patrones pueden observarse en términos de magnitud y dirección (positivos o negativos)? ¿Coinciden con el tipo de inicializador utilizado?''',unsafe_allow_html=True)
+
+            # --- INICIO DE LA MODIFICACIÓN ---
 
             # Extraemos los pesos y sesgos usando la función original
-            pesos_capa1, sesgos_capa1 = detalles_capa(model.layers[0])
+            pesos_capa1, sesgos_capa1 = model.layers[0].get_weights()
 
-            import seaborn as sns
-            import matplotlib.pyplot as plt
+            st.write("##### Distribución Gráfica de Pesos y Sesgos Iniciales")
+            
+            # Crear una figura con dos subplots uno al lado del otro
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            
+            # Gráfico 1: Histograma y KDE para los pesos
+            sns.histplot(pesos_capa1.flatten(), kde=True, ax=axes[0], color="skyblue")
+            axes[0].set_title("Distribución de Pesos Iniciales")
+            axes[0].set_xlabel("Valor del Peso")
+            axes[0].set_ylabel("Frecuencia")
+            
+            # Gráfico 2: Histograma y KDE para los sesgos
+            sns.histplot(sesgos_capa1.flatten(), kde=True, ax=axes[1], color="salmon")
+            axes[1].set_title("Distribución de Sesgos Iniciales")
+            axes[1].set_xlabel("Valor del Sesgo")
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+            
+            st.markdown("""
+            **Análisis de los Gráficos:**
+            - **Patrón:** Los gráficos muestran una distribución **uniforme**, no una curva de campana (Gaussiana). Esto significa que cualquier valor dentro del rango tiene aproximadamente la misma probabilidad de ser elegido.
+            - **Magnitud y Dirección:** Los valores son pequeños, agrupados simétricamente alrededor de cero en un rango estrecho (aproximadamente de -0.05 a 0.05). Hay una mezcla equilibrada de pesos positivos y negativos.
+            - **Coincidencia con Inicializador:** Este patrón es **exactamente lo que se espera** del inicializador `RandomUniform(seed=42)`. Por defecto, genera valores uniformemente distribuidos entre -0.05 y 0.05, lo que confirma que la inicialización funcionó como se esperaba.
+            """)
 
-            sns.kdeplot(pesos_capa1)
-            st.pyplot(plt.gcf())
+            # --- FIN DE LA MODIFICACIÓN ---
 
-            # Ahora, analizamos las variables retornadas
+            # El análisis programático que ya tenías complementa bien el gráfico
             st.write(f"\nAnálisis programático de los PESOS de la capa '{model.layers[0].name}':")
             st.write(f"  - Valor Mínimo:  {np.min(pesos_capa1):.6f}")
             st.write(f"  - Valor Máximo:  {np.max(pesos_capa1):.6f}")
@@ -378,7 +402,6 @@ if st.session_state.Contenido1:
             st.write(f"  - Valor Promedio:{np.mean(sesgos_capa1):.6f}")
 
             st.write("\nConclusión: Todos los valores están dentro del rango esperado [-0.05, 0.05] de RandomUniform.")
-
     elif st.session_state.seccion_actual == 'C':
             st.markdown('#### C) Explique la diferencia funcional al usar `final=True` en `pasando_por_capa`.')
             st.markdown("""
@@ -1165,50 +1188,75 @@ if st.session_state.Contenido5:
         with col_metricas:
             st.markdown("##### Rendimiento del Modelo en TEST")
             if st.button("Cargar y Evaluar Modelo", use_container_width=True):
-                import joblib
-                from tensorflow.keras.models import load_model
-                from sklearn.preprocessing import StandardScaler
-                from sklearn.metrics import accuracy_score, recall_score, confusion_matrix
-                import numpy as np
-                import matplotlib.pyplot as plt
-                import seaborn as sns
-
                 # --- Verificar que el modelo existe ---
                 if not os.path.exists(nombre_modelo):
-                    st.error(f"No se encontró el modelo: {nombre_modelo}")
+                    st.error(f"No se encontró el modelo pre-entrenado: {nombre_modelo}")
+                    # Limpiar resultados anteriores si el modelo no se encuentra
+                    if 'acc_dinamico' in st.session_state: del st.session_state.acc_dinamico
                 else:
-                    
                     # --- Cargar modelo ---
                     modelo = load_model(nombre_modelo, compile=True)
 
                     # --- Predecir ---
                     Y_pred = (modelo.predict(X_test_scaled) > 0.5).astype("int32")
 
-                    # --- Métricas ---
-                    acc = accuracy_score(Y_test, Y_pred)
-                    rec = recall_score(Y_test, Y_pred)
-
-                    st.session_state.acc_dinamico = acc
-                    st.session_state.rec_dinamico = rec
+                    # --- Calcular y guardar Métricas ---
+                    st.session_state.acc_dinamico = accuracy_score(Y_test, Y_pred)
+                    st.session_state.rec_dinamico = recall_score(Y_test, Y_pred)
                     st.session_state.y_pred_dinamico = Y_pred
+                    
+                    # --- INICIO DE LA MODIFICACIÓN ---
+                    # Guardar los pesos y nombres de variables para los nuevos gráficos
+                    st.session_state.pesos_modelo_cargado = modelo.layers[0].get_weights()[0]
+                    # Asegúrate de que 'final_dataset' esté disponible o usa 'dataset'
+                    if 'df_limpio' in st.session_state:
+                        final_dataset = st.session_state.df_limpio
+                    else:
+                        final_dataset = dataset # Fallback al dataset original
+                    st.session_state.nombres_variables_c5 = final_dataset.drop("Diabetes", axis=1).columns.tolist()
+                    # --- FIN DE LA MODIFICACIÓN ---
 
-            # Mostrar métricas si ya fueron calculadas
+
+        # Mostrar métricas y análisis de pesos si ya fueron calculados
         if 'acc_dinamico' in st.session_state:
-                
-                col1, col2 = st.columns([1,5])
-                with col1:
-                    st.metric("Accuracy", f"{st.session_state.acc_dinamico:.4f}")
-                    st.metric("Recall", f"{st.session_state.rec_dinamico:.4f}")
-                with col2:
-                    _, col, _  = st.columns([1.5,3,1.5])
-                    fig, ax = plt.subplots(figsize=(4, 3.5))
-                    cm = confusion_matrix(Y_test, st.session_state.y_pred_dinamico)
-                    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, cbar=False)
-                    ax.set_title("Matriz de Confusión")
-                    ax.set_xlabel("Predicción")
-                    ax.set_ylabel("Valor Real")
-                    with col:
-                        st.pyplot(fig)
+            st.metric("Accuracy", f"{st.session_state.acc_dinamico:.4f}")
+            st.metric("Recall", f"{st.session_state.rec_dinamico:.4f}")
+
+            fig, ax = plt.subplots(figsize=(4, 3.5))
+            plot_confusion_matrix(ax, Y_test, st.session_state.y_pred_dinamico, "Matriz de Confusión")
+            st.pyplot(fig)
+            
+            # --- INICIO DE LA MODIFICACIÓN ---
+            st.divider()
+            st.markdown("##### Análisis de Pesos (Primera Capa)")
+
+            # 1. Calcular y mostrar la variable más influyente
+            pesos_capa1 = st.session_state.pesos_modelo_cargado
+            nombres_variables = st.session_state.nombres_variables_c5
+            
+            # Sumar el valor absoluto de los pesos por cada variable de entrada
+            importancia_variable = np.sum(np.abs(pesos_capa1), axis=1)
+            idx_mas_influyente = np.argmax(importancia_variable)
+            nombre_variable_influyente = nombres_variables[idx_mas_influyente]
+            
+            st.info(f"**Variable más influyente:** '{nombre_variable_influyente}'")
+            
+            # 2. Mostrar la matriz de pesos como un heatmap
+            fig_pesos, ax_pesos = plt.subplots(figsize=(5, 4))
+            sns.heatmap(
+                pesos_capa1,
+                annot=True,
+                fmt=".2f",
+                cmap="vlag", # 'vlag' es bueno para valores divergentes (positivos/negativos)
+                yticklabels=nombres_variables,
+                xticklabels=[f"N{i}" for i in range(pesos_capa1.shape[1])],
+                ax=ax_pesos
+            )
+            ax_pesos.set_title("Mapa de Pesos: Entrada -> Oculta 1")
+            ax_pesos.set_xlabel("Neuronas Capa Oculta")
+            ax_pesos.set_ylabel("Variables de Entrada")
+            st.pyplot(fig_pesos)
+            # --- FIN DE LA MODIFICACIÓN ---
         
     # =================================================================================================
     # VISTA C: VALIDATION SPLIT (carga modelos preentrenados automáticamente)
@@ -1282,8 +1330,7 @@ if st.session_state.Contenido5:
                     with col:
                         plot_cm(Y_test, Y_pred_con_val, "Matriz de Confusión")
 
-            st.info("💡 **Conclusión:** Observa cómo las curvas de entrenamiento y validación divergen en el gráfico de la derecha. Esto es un signo de **sobreajuste**: el modelo se está especializando demasiado en los datos de entrenamiento y pierde capacidad de generalizar. El `validation_split` es crucial para detectar este punto y detener el entrenamiento a tiempo (usando técnicas como *Early Stopping*).")
-
+           
 ########################################################################################################################################################################################################################################################################################
 
 # Estado inicial para la sección y los pesos/sesgos modificables
@@ -1422,14 +1469,4 @@ if st.session_state.Contenido6:
     st.divider()
 
    
-    # Conclusiones finales para los puntos (c) y (d)
-    st.markdown("### Conclusiones")
-    st.markdown("""
-    **(c) ¿Qué efecto tiene sobre la salida del modelo el hecho de que una neurona permanezca constantemente apagada?**
-
-    Una neurona que siempre está apagada se conoce como una **"neurona muerta" (Dead Neuron)**. Su efecto es equivalente a eliminarla de la red. No contribuye con ninguna información a las capas posteriores, ya que su salida es siempre cero. Esto reduce la **capacidad del modelo**, es decir, su habilidad para aprender patrones complejos. Si demasiadas neuronas mueren durante el entrenamiento, el rendimiento de la red se degrada significativamente.
-
-    **(d) ¿Qué implicaciones tiene que una neurona esté constantemente activa?**
-
-    Una neurona que siempre está activa (salida > 0) no es necesariamente un problema, pero puede ser un síntoma de uno. Si está constantemente activa sin importar la entrada, significa que ha dejado de discriminar entre diferentes patrones de datos. En lugar de agregar no linealidad, simplemente pasa una versión transformada linealmente de sus entradas a la siguiente capa. Esto **reduce la no linealidad** de la red en ese punto, limitando su poder de representación. En casos extremos, si el valor de activación es muy grande y constante, puede llevar a problemas como la **explosión de gradientes** durante el entrenamiento.
-    """)
+   
